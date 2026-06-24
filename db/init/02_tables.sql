@@ -56,3 +56,12 @@ CREATE TABLE IF NOT EXISTS gold.policy_rate_monthly (
   obs_month    DATE PRIMARY KEY,
   policy_rate  NUMERIC
 );
+
+-- VIEW รวมทุก mart ตาม obs_month (FULL JOIN — เดือนไหนมีบางตัวก็แสดง) สำหรับ dashboard/CSV
+CREATE OR REPLACE VIEW gold.dashboard_monthly AS
+SELECT obs_month, s.set_close, s.set_mom, s.set_volume,
+       f.usdthb, f.usdthb_mom, p.policy_rate
+FROM gold.set_monthly s
+FULL JOIN gold.fx_monthly f USING (obs_month)
+FULL JOIN gold.policy_rate_monthly p USING (obs_month)
+ORDER BY obs_month;

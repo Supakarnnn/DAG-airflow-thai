@@ -35,7 +35,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d   # สร้าง db warehouse + schema bronze/silver/gold
     ports:
-      - "5432:5432"
+      - "5433:5432"   # host 5433 — กันชนกับ Postgres ที่ลงบน Windows อยู่แล้ว (จับ 5432)
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s

@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 CLAUDE.md
 spec.md
+dashboards/
+scripts/
