@@ -2,3 +2,5 @@ yfinance==1.4.1
 fredapi==0.5.2
 python-dotenv
 dbnomics==1.2.7
+pandera==0.32.0
+pandas==2.2.3

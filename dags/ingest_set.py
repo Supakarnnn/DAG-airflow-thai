@@ -9,7 +9,9 @@ from airflow.operators.python import get_current_context
 from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
+import pandas as pd  # noqa: E402
 from src.extract.set import fetch_set  # noqa: E402
+from src.quality.set_checks import validate_set  # noqa: E402
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
 
@@ -63,6 +65,20 @@ def ingest_set():
                            "v": float(r[field]), "unit": meta["unit"]})
 
     @task
+    def validate_silver() -> None:
+        # อ่าน SET จาก silver -> pivot wide -> Pandera ตรวจ. ไม่ผ่าน = raise -> to_gold ไม่รัน
+        with ENGINE().begin() as c:
+            rows = c.execute(text("""
+                SELECT obs_date, indicator_code, value FROM silver.macro_observation
+                WHERE indicator_code IN ('TH.SET_INDEX','TH.SET_VOLUME')
+            """)).fetchall()
+        df = pd.DataFrame(rows, columns=["obs_date", "indicator_code", "value"])
+        wide = (df.pivot(index="obs_date", columns="indicator_code", values="value")
+                  .rename(columns={"TH.SET_INDEX": "set_index", "TH.SET_VOLUME": "set_volume"})
+                  .astype(float).reset_index())
+        validate_set(wide)
+
+    @task
     def to_gold() -> None:
         # set_close = close วันสุดท้ายของเดือน, set_volume = รวมทั้งเดือน, set_mom = %เทียบเดือนก่อน
         with ENGINE().begin() as c:
@@ -85,7 +101,7 @@ def ingest_set():
                 ORDER BY c.mth
             """))
 
-    to_bronze() >> to_silver() >> to_gold()
+    to_bronze() >> to_silver() >> validate_silver() >> to_gold()
 
 
 ingest_set()

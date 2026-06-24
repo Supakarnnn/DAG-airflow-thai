@@ -10,8 +10,10 @@ from airflow.operators.python import get_current_context
 from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
+import pandas as pd  # noqa: E402
 from src.extract.bot import fetch_policy_rate       # noqa: E402
 from src.extract.dbnomics import fetch as fetch_db  # noqa: E402
+from src.quality.bot_checks import validate_policy_rate  # noqa: E402
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
 CODE = "TH.POLICY_RATE"
@@ -70,6 +72,17 @@ def ingest_policy_rate():
                         upsert(r["obs_date"], r["value"])
 
     @task
+    def validate_silver() -> None:
+        # อ่าน policy rate จาก silver -> Pandera ตรวจ. ไม่ผ่าน = raise -> to_gold ไม่รัน
+        with ENGINE().begin() as c:
+            rows = c.execute(text("""
+                SELECT value AS policy_rate FROM silver.macro_observation
+                WHERE indicator_code = :code
+            """), {"code": CODE}).fetchall()
+        df = pd.DataFrame(rows, columns=["policy_rate"]).astype({"policy_rate": float})
+        validate_policy_rate(df)
+
+    @task
     def to_gold() -> None:
         # สร้างเดือนต่อเนื่องตั้งแต่ข้อมูลแรกถึงปัจจุบัน แล้ว as-of fill (ค่าที่มีผล ณ สิ้นเดือน)
         # ponytail: correlated subquery — ข้อมูลหลักร้อยเดือน เร็วพอ; เปลี่ยนเป็น window ถ้าโตมาก
@@ -98,7 +111,7 @@ def ingest_policy_rate():
                 ORDER BY m.mth
             """), {"code": CODE})
 
-    to_bronze() >> to_silver() >> to_gold()
+    to_bronze() >> to_silver() >> validate_silver() >> to_gold()
 
 
 ingest_policy_rate()

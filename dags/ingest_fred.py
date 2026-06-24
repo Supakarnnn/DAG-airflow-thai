@@ -10,7 +10,9 @@ from airflow.operators.python import get_current_context
 from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
+import pandas as pd  # noqa: E402
 from src.extract.fred import fetch_series  # noqa: E402
+from src.quality.fred_checks import validate_fx  # noqa: E402
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
 
@@ -64,6 +66,17 @@ def ingest_fred():
                            "unit": s["unit"], "freq": s["freq"], "sid": s["series_id"]})
 
     @task
+    def validate_silver() -> None:
+        # อ่าน USD/THB จาก silver -> Pandera ตรวจ. ไม่ผ่าน = raise -> to_gold ไม่รัน
+        with ENGINE().begin() as c:
+            rows = c.execute(text("""
+                SELECT obs_date, value AS usdthb FROM silver.macro_observation
+                WHERE indicator_code='FX.USDTHB'
+            """)).fetchall()
+        df = pd.DataFrame(rows, columns=["obs_date", "usdthb"]).astype({"usdthb": float})
+        validate_fx(df)
+
+    @task
     def to_gold() -> None:
         # usdthb สิ้นเดือน (DISTINCT ON) + MoM% (lag)
         with ENGINE().begin() as c:
@@ -80,7 +93,7 @@ def ingest_fred():
                 FROM m ORDER BY mth
             """))
 
-    to_bronze() >> to_silver() >> to_gold()
+    to_bronze() >> to_silver() >> validate_silver() >> to_gold()
 
 
 ingest_fred()
