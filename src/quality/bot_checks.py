@@ -25,7 +25,8 @@ if __name__ == "__main__":  # self-check: uv run -m src.quality.bot_checks
     validate_policy_rate(good)
     print("OK: ข้อมูลดีผ่าน")
 
-    bad = good.copy(); bad.loc[0, "policy_rate"] = -1     # ติดลบ ต้องโดนจับ
+    bad = good.copy()
+    bad.loc[0, "policy_rate"] = -1     # ติดลบ ต้องโดนจับ
     try:
         validate_policy_rate(bad)
         raise SystemExit("FAIL: ควร raise แต่ไม่ raise")

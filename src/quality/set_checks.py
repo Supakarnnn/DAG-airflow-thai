@@ -31,7 +31,8 @@ if __name__ == "__main__":  # self-check: uv run -m src.quality.set_checks
     validate_set(good, today=good["obs_date"].max())
     print("OK: ข้อมูลดีผ่าน")
 
-    bad = good.copy(); bad.loc[0, "set_index"] = -1      # ค่าติดลบ ต้องโดนจับ
+    bad = good.copy()
+    bad.loc[0, "set_index"] = -1      # ค่าติดลบ ต้องโดนจับ
     try:
         validate_set(bad, today=bad["obs_date"].max())
         raise SystemExit("FAIL: ควร raise แต่ไม่ raise")
