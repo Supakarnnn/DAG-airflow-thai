@@ -1,0 +1,28 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ลงเฉพาะที่ DQ checks ต้องใช้ (offline) — ไม่ลง yfinance/fredapi/dbnomics ที่ยิง API
+      - name: Install deps
+        run: pip install pandas==2.2.3 pandera==0.32.0 ruff
+
+      # E402/E731/E501: DAG จงใจ import หลัง sys.path, ใช้ lambda ENGINE, SQL บรรทัดยาว
+      - name: Lint
+        run: ruff check src dags --ignore E402,E731,E501
+
+      # รัน self-check ของ DQ ทั้ง 3 (ใช้ synthetic data — พิสูจน์ว่ายังจับของเสียได้)
+      - name: DQ logic checks
+        run: |
+          python -m src.quality.set_checks
+          python -m src.quality.fred_checks
+          python -m src.quality.bot_checks
