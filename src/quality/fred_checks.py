@@ -5,7 +5,7 @@ from datetime import date
 import pandas as pd
 from pandera.pandas import Check, Column, DataFrameSchema
 
-MAX_STALE_DAYS = 10   # FRED FX อัปเดตช้ากว่ารายวันจริงไม่กี่วันทำการ
+MAX_STALE_DAYS = 14   # FRED FX publish ช้า + เจอวันหยุด US/เสาร์อาทิตย์ อาจ lag ~2 สัปดาห์
 MIN_ROWS = 100
 
 # data contract: DEXTHUS ย้อนถึงปี 1981 — ครอบยุคบาทแข็ง ~20 + พีควิกฤต 1997 ~56

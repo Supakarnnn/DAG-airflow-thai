@@ -25,15 +25,21 @@ def ingest_policy_rate():
 
     @task
     def to_bronze() -> None:
+        import logging
         run_id = get_current_context()["run_id"]
         eng = ENGINE()
-        # BOT: ค่าสดปัจจุบัน (เก็บ news ไว้ใน payload ด้วย ไว้ป้อน LLM ทีหลัง)
-        bot = fetch_policy_rate()
-        # DBnomics: ประวัติย้อนหลังทั้งชุด
-        hist = fetch_db(BACKFILL_SERIES)
-        hist_payload = {"obs": hist.assign(obs_date=hist.obs_date.astype(str)).to_dict("records")}
+        # BOT: ค่าสดปัจจุบัน (critical — ถ้าพังให้ DAG พัง เพราะนี่คือข้อมูลรายวันจริง)
+        rows = [("BOT/policy_rate", fetch_policy_rate())]
+        # DBnomics backfill เป็น best-effort: ช้า/ล่มบ่อย + ประวัติแทบไม่เปลี่ยน
+        # ล่มก็ข้าม ไม่ให้ DAG พัง (ประวัติเดิมยังอยู่ใน silver จากรันก่อน — idempotent)
+        try:
+            hist = fetch_db(BACKFILL_SERIES)
+            rows.append((BACKFILL_SERIES,
+                         {"obs": hist.assign(obs_date=hist.obs_date.astype(str)).to_dict("records")}))
+        except Exception as e:
+            logging.warning("ข้าม DBnomics backfill (best-effort): %s", e)
         with eng.begin() as c:
-            for sid, payload in [("BOT/policy_rate", bot), (BACKFILL_SERIES, hist_payload)]:
+            for sid, payload in rows:
                 c.execute(text("""
                     INSERT INTO bronze.raw_observation (batch_id, source_api, series_id, payload, request_params)
                     VALUES (:b, 'BOT', :sid, :p, :rp)
@@ -64,7 +70,9 @@ def ingest_policy_rate():
                 row = c.execute(text("""
                     SELECT payload FROM bronze.raw_observation
                     WHERE series_id = :sid ORDER BY ingested_at DESC LIMIT 1
-                """), {"sid": sid}).scalar_one()
+                """), {"sid": sid}).scalar_one_or_none()
+                if row is None:        # ไม่เคยมี source นี้ใน bronze (เช่น DBnomics ไม่เคยสำเร็จ) → ข้าม
+                    continue
                 if sid == "BOT/policy_rate":
                     upsert(row["obs_date"], row["value"])
                 else:
