@@ -57,11 +57,26 @@ CREATE TABLE IF NOT EXISTS gold.policy_rate_monthly (
   policy_rate  NUMERIC
 );
 
+-- GOLD: เงินเฟ้อไทย (CPI % YoY) รายเดือน จาก DBnomics IMF/IFS
+CREATE TABLE IF NOT EXISTS gold.cpi_monthly (
+  obs_month  DATE PRIMARY KEY,
+  cpi_yoy    NUMERIC      -- % เทียบช่วงเดียวกันปีก่อน (headline)
+);
+
+-- VIEW: real interest rate = policy_rate - เงินเฟ้อ (เฉพาะเดือนที่มีทั้งคู่)
+CREATE OR REPLACE VIEW gold.real_rate_monthly AS
+SELECT obs_month, p.policy_rate, c.cpi_yoy, p.policy_rate - c.cpi_yoy AS real_rate
+FROM gold.policy_rate_monthly p
+JOIN gold.cpi_monthly c USING (obs_month)
+ORDER BY obs_month;
+
 -- VIEW รวมทุก mart ตาม obs_month (FULL JOIN — เดือนไหนมีบางตัวก็แสดง) สำหรับ dashboard/CSV
 CREATE OR REPLACE VIEW gold.dashboard_monthly AS
 SELECT obs_month, s.set_close, s.set_mom, s.set_volume,
-       f.usdthb, f.usdthb_mom, p.policy_rate
+       f.usdthb, f.usdthb_mom, p.policy_rate, c.cpi_yoy,
+       p.policy_rate - c.cpi_yoy AS real_rate
 FROM gold.set_monthly s
 FULL JOIN gold.fx_monthly f USING (obs_month)
 FULL JOIN gold.policy_rate_monthly p USING (obs_month)
+FULL JOIN gold.cpi_monthly c USING (obs_month)
 ORDER BY obs_month;
