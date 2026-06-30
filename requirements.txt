@@ -4,5 +4,6 @@ python-dotenv
 dbnomics==1.2.7
 pandera==0.32.0
 pandas==2.2.3
+statsmodels==0.14.4
 SQLAlchemy==2.0.51
 psycopg2-binary==2.9.12

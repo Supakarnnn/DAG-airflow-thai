@@ -10,7 +10,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     # ponytail: ติดตั้ง deps ตอน start พอสำหรับ dev; ทำ Dockerfile เมื่อ build เสถียร/CI
     # pin ครบ — pandas ต้อง 2.x (3.0 พัง read_sql กับ SQLAlchemy 1.4 ที่ Airflow บังคับใช้)
-    _PIP_ADDITIONAL_REQUIREMENTS: "yfinance==1.4.1 fredapi==0.5.2 dbnomics==1.2.7 pandera==0.32.0 pandas==2.2.3 apache-airflow-providers-postgres"
+    _PIP_ADDITIONAL_REQUIREMENTS: "yfinance==1.4.1 fredapi==0.5.2 dbnomics==1.2.7 pandera==0.32.0 pandas==2.2.3 statsmodels==0.14.4 apache-airflow-providers-postgres"
     # warehouse conn ให้ DAG เรียกใช้ (bronze/silver/gold อยู่ใน db ชื่อ warehouse)
     AIRFLOW_CONN_WAREHOUSE: postgresql://warehouse:warehouse@postgres:5432/warehouse
     BOT_API_KEY: ${BOT_API_KEY:-}
