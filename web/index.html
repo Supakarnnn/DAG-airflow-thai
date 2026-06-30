@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thai Macro & Market Data</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  /* calm dark theme: deep green-charcoal base (no white surfaces), soft off-white text, single teal accent */
+  :root{
+    --bg:#0f1917; --surface:#16221f; --surface2:#1b2a26; --line:#27352f;
+    --ink:#e3ece9; --muted:#8fa39d;
+    --accent:#2dd4bf;            /* teal — series หลัก + เน้น */
+    --set:#2dd4bf; --fx:#f0a64e; --policy:#8a93d6; --cpi:#f0738f; --fc:#2dd4bf;
+    --up:#34d399; --down:#f0738f;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.18);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Thai",Roboto,sans-serif;
+    font-variant-numeric:tabular-nums;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
+  h1{font-size:24px;font-weight:650;letter-spacing:-.01em;margin:0}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:4px}
+  h2{font-size:15px;font-weight:600;letter-spacing:.02em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 14px}
+  section{margin-top:40px}
+  /* stat strip */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+  .stat{background:var(--surface2);padding:18px 20px}
+  .stat .k{font-size:12.5px;color:var(--muted)}
+  .stat .v{font-size:27px;font-weight:650;letter-spacing:-.02em;margin-top:6px}
+  .stat .d{font-size:12.5px;margin-top:3px}
+  .up{color:var(--up)} .down{color:var(--down)}
+  /* charts */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:var(--shadow)}
+  .card h3{font-size:14px;font-weight:600;margin:0 0 2px}
+  .card .note{font-size:12px;color:var(--muted);margin:0 0 14px}
+  .cv{position:relative;height:260px}
+  /* forecast toggle */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:14px}
+  .seg button{border:0;background:var(--surface2);color:var(--muted);font:inherit;font-size:13px;
+    padding:7px 16px;cursor:pointer;transition:background .15s,color .15s}
+  .seg button:hover{color:var(--ink)}
+  .seg button[aria-pressed=true]{background:var(--accent);color:#07221e}
+  /* correlation */
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600;font-size:12.5px}
+  td.num{text-align:right;font-weight:600}
+  .pill{display:inline-block;min-width:62px;text-align:center;padding:3px 0;border-radius:6px;color:#07221e;font-weight:600;font-size:12.5px}
+  .skel{color:var(--muted);font-size:13.5px}
+  /* ตัวกรองช่วงเวลา */
+  .rangebar{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:14px 18px;box-shadow:var(--shadow);
+    position:sticky;top:12px;z-index:10}
+  .rangebar .lab{font-size:12.5px;color:var(--muted);font-weight:600}
+  .rangebar input[type=month]{background:var(--surface2);color:var(--ink);
+    border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;
+    font-size:13px;color-scheme:dark}
+  .dual{position:relative;flex:1;min-width:240px;height:24px}
+  .dual .track,.dual .fillbar{position:absolute;top:50%;height:3px;
+    transform:translateY(-50%);border-radius:3px}
+  .dual .track{left:0;right:0;background:var(--line)}
+  .dual .fillbar{background:var(--accent)}
+  .dual input[type=range]{position:absolute;top:0;left:0;width:100%;height:24px;margin:0;
+    -webkit-appearance:none;appearance:none;background:none;pointer-events:none}
+  .dual input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;
+    height:18px;width:18px;border-radius:50%;background:var(--surface);
+    border:2px solid var(--accent);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .dual input[type=range]::-moz-range-thumb{pointer-events:auto;height:18px;width:18px;
+    border-radius:50%;background:var(--surface);border:2px solid var(--accent);cursor:pointer}
+  @media(max-width:760px){.stats{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}
+    .dual{flex-basis:100%;order:3}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Thai Macro &amp; Market Data</h1>
+    <div class="sub">ตลาดหุ้น ค่าเงิน ดอกเบี้ยนโยบาย และเงินเฟ้อไทยรายเดือน พร้อมพยากรณ์ 6 เดือน</div>
+  </header>
+
+  <section class="rangebar" id="rangebar">
+    <span class="lab">ช่วงเวลา</span>
+    <input type="month" id="rStart"><input type="month" id="rEnd">
+    <div class="dual" id="dual">
+      <div class="track"></div><div class="fillbar" id="fillbar"></div>
+      <input type="range" id="sLo"><input type="range" id="sHi">
+    </div>
+  </section>
+
+  <section>
+    <div class="stats" id="stats"><div class="stat"><div class="skel">กำลังโหลด...</div></div></div>
+  </section>
+
+  <section>
+    <h2>ตลาดและเศรษฐกิจรายเดือน</h2>
+    <div class="grid2">
+      <div class="card"><h3>SET Index</h3><p class="note">ราคาปิดสิ้นเดือน</p><div class="cv"><canvas id="cSet"></canvas></div></div>
+      <div class="card"><h3>USD/THB</h3><p class="note">อัตราแลกเปลี่ยนสิ้นเดือน (ขึ้น = บาทอ่อน)</p><div class="cv"><canvas id="cFx"></canvas></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>พยากรณ์ (Holt-Winters)</h2>
+    <div class="card">
+      <div class="seg" id="seg">
+        <button data-i="TH.SET_INDEX" aria-pressed="true">SET Index</button>
+        <button data-i="FX.USDTHB" aria-pressed="false">USD/THB</button>
+      </div>
+      <p class="note">เส้นทึบ = ค่าจริง, เส้นประ = พยากรณ์, แถบ = ช่วงความเชื่อมั่น 95%</p>
+      <div class="cv" style="height:300px"><canvas id="cFc"></canvas></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>อัตราดอกเบี้ยที่แท้จริง</h2>
+    <div class="card"><p class="note">real rate = ดอกเบี้ยนโยบาย − เงินเฟ้อ (เฉพาะเดือนที่มีครบทั้งคู่)</p>
+      <div class="cv" style="height:300px"><canvas id="cReal"></canvas></div></div>
+  </section>
+
+  <section>
+    <h2>ความสัมพันธ์ระหว่างตัวชี้วัด</h2>
+    <div class="card"><p class="note">ค่า correlation: +1 ไปทางเดียวกัน, −1 สวนทาง, 0 ไม่สัมพันธ์ &middot; n = จำนวนเดือน</p>
+      <table id="corr"><tbody><tr><td class="skel">กำลังโหลด...</td></tr></tbody></table></div>
+  </section>
+</div>
+
+<script>
+const API = "";  // เสิร์ฟจาก FastAPI โดเมนเดียวกัน
+const fmt = (x, d=2) => x==null ? "-" : Number(x).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+const get = async p => (await fetch(API+p)).json();
+
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.color = "#8fa39d";
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+Chart.defaults.plugins.legend.labels.boxHeight = 12;
+
+const baseOpts = {
+  responsive:true, maintainAspectRatio:false, interaction:{mode:"index",intersect:false},
+  scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},
+          y:{grid:{color:"rgba(255,255,255,.06)"},border:{display:false}}},
+  plugins:{legend:{display:false}}
+};
+const line = (id, labels, ds, opts={}) => new Chart(document.getElementById(id),
+  {type:"line", data:{labels,datasets:ds}, options:{...baseOpts,...opts}});
+const series = (label,data,color,extra={}) => ({label,data,borderColor:color,backgroundColor:color,
+  borderWidth:2,pointRadius:0,tension:.25,...extra});
+
+const el = id => document.getElementById(id);
+// กราฟเส้นเดี่ยว สไตล์ area โค้งมน + พื้นไล่เฉด
+const areaChart=(id,labs,data,rgb)=>{const ctx=el(id).getContext("2d");
+  const g=ctx.createLinearGradient(0,0,0,260);
+  g.addColorStop(0,`rgba(${rgb},.30)`);g.addColorStop(1,`rgba(${rgb},0)`);
+  return new Chart(ctx,{type:"line",data:{labels:labs,datasets:[{data,borderColor:`rgb(${rgb})`,
+    backgroundColor:g,fill:"origin",borderWidth:2.5,tension:.45,cubicInterpolationMode:"monotone",
+    pointRadius:0,pointHoverRadius:4,pointBackgroundColor:`rgb(${rgb})`,
+    pointBorderColor:"#16221f",pointBorderWidth:2}]},options:baseOpts});};
+// ตัด null หัว/ท้าย คืน [i,j]
+const trimIdx=arr=>{let i=arr.findIndex(v=>v!=null),j=arr.length-1;while(j>i&&arr[j]==null)j--;return[i<0?0:i,j];};
+const depth={id:"depth",beforeDatasetsDraw(c){c.ctx.save();
+  c.ctx.shadowColor="rgba(0,0,0,.4)";c.ctx.shadowBlur=8;c.ctx.shadowOffsetY=4;},
+  afterDatasetsDraw(c){c.ctx.restore();}};
+
+(async function(){
+  const d = await get("/api/dashboard");
+  const months = d.map(r=>r.obs_month), N=d.length, ym=s=>s.slice(0,7);
+
+  // correlation — สรุปทั้งช่วง ไม่ผูกตัวกรอง
+  const c = await get("/api/correlation");
+  const bg = v => { const a=Math.min(Math.abs(v),1); return v>=0 ? `rgba(45,212,191,${.35+a*.6})` : `rgba(240,115,143,${.35+a*.6})`; };
+  el("corr").innerHTML =
+    "<thead><tr><th>ตัวชี้วัด A</th><th>ตัวชี้วัด B</th><th class='num'>correlation</th><th class='num'>n</th></tr></thead><tbody>"
+    + c.map(r=>`<tr><td>${r.var1}</td><td>${r.var2}</td>
+        <td class="num"><span class="pill" style="background:${bg(r.correlation)}">${fmt(r.correlation,3)}</span></td>
+        <td class="num">${r.n}</td></tr>`).join("") + "</tbody>";
+
+  const charts={};
+  function render(){
+    let lo=+el("sLo").value, hi=+el("sHi").value; if(lo>hi)[lo,hi]=[hi,lo];
+    const dw=d.slice(lo,hi+1), labels=dw.map(r=>r.obs_month);
+    const lastW=[...dw].reverse(), lastOf=k=>lastW.find(r=>r[k]!=null);
+
+    // stat strip — ค่าล่าสุดในช่วงที่เลือก + MoM
+    const sSet=lastOf("set_close"),sFx=lastOf("usdthb"),sPol=lastOf("policy_rate"),sCpi=lastOf("cpi_yoy");
+    const mom=v=>v==null?"":`<span class="${v>=0?'up':'down'}">${v>=0?'▲':'▼'} ${fmt(Math.abs(v))}%</span>`;
+    el("stats").innerHTML=[
+      ["SET Index",fmt(sSet?.set_close,2),mom(sSet?.set_mom)+" MoM"],
+      ["USD/THB",fmt(sFx?.usdthb,3),mom(sFx?.usdthb_mom)+" MoM"],
+      ["ดอกเบี้ยนโยบาย",fmt(sPol?.policy_rate,2)+"%","ล่าสุด "+(sPol?.obs_month??"")],
+      ["เงินเฟ้อ (YoY)",fmt(sCpi?.cpi_yoy,2)+"%","ล่าสุด "+(sCpi?.obs_month??"")],
+    ].map(([k,v,dd])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${dd}</div></div>`).join("");
+
+    Object.values(charts).forEach(ch=>ch&&ch.destroy());
+    // SET / FX
+    const aSet=dw.map(r=>r.set_close),[s0,s1]=trimIdx(aSet);
+    const aFx=dw.map(r=>r.usdthb),[f0,f1]=trimIdx(aFx);
+    charts.set=areaChart("cSet",labels.slice(s0,s1+1),aSet.slice(s0,s1+1),"45,212,191");
+    charts.fx =areaChart("cFx", labels.slice(f0,f1+1),aFx.slice(f0,f1+1),"240,166,78");
+
+    // real rate — area เด่น + policy/cpi เส้นโค้ง
+    const aRr=dw.map(r=>r.real_rate),[r0,r1]=trimIdx(aRr);
+    const rlab=labels.slice(r0,r1+1),col=k=>dw.slice(r0,r1+1).map(r=>r[k]);
+    const rctx=el("cReal").getContext("2d");
+    const fillG=rgb=>{const g=rctx.createLinearGradient(0,0,0,300);
+      g.addColorStop(0,`rgba(${rgb},.30)`);g.addColorStop(1,`rgba(${rgb},0)`);return g;};
+    const ar=(label,k,rgb,on)=>({label,data:col(k),borderColor:`rgb(${rgb})`,
+      backgroundColor:on?fillG(rgb):`rgb(${rgb})`,fill:on?"origin":false,borderWidth:2.5,
+      tension:.45,cubicInterpolationMode:"monotone",pointRadius:0,pointHoverRadius:4,
+      pointBackgroundColor:`rgb(${rgb})`,pointBorderColor:"#16221f",pointBorderWidth:2,spanGaps:true});
+    charts.real=new Chart(el("cReal"),{type:"line",data:{labels:rlab,datasets:[
+      ar("ดอกเบี้ยนโยบาย","policy_rate","138,147,214",false),
+      ar("เงินเฟ้อ YoY","cpi_yoy","240,115,143",false),
+      ar("real rate","real_rate","45,212,191",true)]},
+      options:{...baseOpts,plugins:{legend:{display:true,position:"bottom"}}},plugins:[depth]});
+  }
+
+  // ---- ตัวกรองช่วงเวลา: native month input + dual slider (ไม่ใช้ lib) ----
+  const sLo=el("sLo"),sHi=el("sHi"),rS=el("rStart"),rE=el("rEnd"),fb=el("fillbar");
+  [sLo,sHi].forEach(s=>{s.min=0;s.max=N-1;s.step=1;});
+  sLo.value=0;sHi.value=N-1;
+  rS.min=rE.min=ym(months[0]);rS.max=rE.max=ym(months[N-1]);
+  const idxOf=v=>{let best=0;for(let i=0;i<N;i++){if(ym(months[i])===v)return i;if(ym(months[i])<v)best=i;}return best;};
+  function sync(){rS.value=ym(months[+sLo.value]);rE.value=ym(months[+sHi.value]);
+    const a=+sLo.value/(N-1)*100,b=+sHi.value/(N-1)*100;fb.style.left=a+"%";fb.style.width=Math.max(0,b-a)+"%";}
+  sLo.oninput=()=>{if(+sLo.value>+sHi.value)sLo.value=sHi.value;sync();render();};
+  sHi.oninput=()=>{if(+sHi.value<+sLo.value)sHi.value=sLo.value;sync();render();};
+  rS.onchange=()=>{sLo.value=Math.min(idxOf(rS.value),+sHi.value);sync();render();};
+  rE.onchange=()=>{sHi.value=Math.max(idxOf(rE.value),+sLo.value);sync();render();};
+  sync();render();
+})();
+
+// forecast — actual + forecast + CI band, สลับ indicator ได้
+let fcChart;
+async function drawForecast(indicator){
+  let f = await get("/api/forecast?indicator="+encodeURIComponent(indicator));
+  // โฟกัสช่วงพยากรณ์: actual 12 เดือนก่อนหน้า + ช่วง forecast (ไม่ลากประวัติเต็ม)
+  const fi = f.findIndex(r=>r.is_forecast);
+  if(fi>0) f = f.slice(Math.max(0, fi-12));
+  const labels = f.map(r=>r.obs_month);
+  const actual = f.map(r=> r.is_forecast ? null : r.yhat);
+  // ต่อเส้นพยากรณ์จากจุด actual สุดท้าย
+  const lastActualIdx = f.map(r=>r.is_forecast).lastIndexOf(false);
+  const fc    = f.map((r,i)=> r.is_forecast ? r.yhat : (i===lastActualIdx ? r.yhat : null));
+  const upper = f.map((r,i)=> r.is_forecast ? r.yhat_upper : (i===lastActualIdx ? r.yhat : null));
+  const lower = f.map((r,i)=> r.is_forecast ? r.yhat_lower : (i===lastActualIdx ? r.yhat : null));
+
+  const ds = [
+    series("ค่าจริง", actual, "var(--fc)", {spanGaps:false,cubicInterpolationMode:"monotone"}),
+    series("พยากรณ์", fc, "var(--fc)", {borderDash:[6,4],cubicInterpolationMode:"monotone"}),
+    {label:"_upper",data:upper,borderColor:"transparent",pointRadius:0,fill:"+1",
+      backgroundColor:"rgba(45,212,191,.15)",tension:.25},
+    {label:"_lower",data:lower,borderColor:"transparent",pointRadius:0,fill:false,tension:.25},
+  ];
+  if(fcChart) fcChart.destroy();
+  fcChart = line("cFc", labels, ds, {
+    plugins:{legend:{display:true,position:"bottom",
+      labels:{filter:i=>!i.text.startsWith("_")}}}});
+}
+document.getElementById("seg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  [...e.currentTarget.children].forEach(x=>x.setAttribute("aria-pressed", x===b));
+  drawForecast(b.dataset.i);
+});
+drawForecast("TH.SET_INDEX");
+</script>
+</body>
+</html>
