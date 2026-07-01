@@ -11,13 +11,14 @@ from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
 import pandas as pd  # noqa: E402
-from src.extract.bot import fetch_policy_rate       # noqa: E402
+from src.extract.bot import fetch_policy_rate, fetch_bot_series  # noqa: E402
 from src.extract.dbnomics import fetch as fetch_db  # noqa: E402
 from src.quality.bot_checks import validate_policy_rate  # noqa: E402
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
 CODE = "TH.POLICY_RATE"
-BACKFILL_SERIES = "BIS/WS_CBPOL/M.TH"   # ประวัติย้อนหลังจาก BIS ผ่าน DBnomics
+BACKFILL_SERIES = "BIS/WS_CBPOL/M.TH"   # ประวัติย้อนหลังจาก BIS ผ่าน DBnomics (2000→~2025-06)
+STAT_SERIES = "FMRTINTM00262"           # BOT Statistics: policy rate รายเดือน (2024-07→now) เติมช่อง forward-fill
 
 
 @dag(schedule="0 7 * * *", start_date=datetime(2024, 1, 1), catchup=False, tags=["bot", "policy-rate"])
@@ -38,6 +39,13 @@ def ingest_policy_rate():
                          {"obs": hist.assign(obs_date=hist.obs_date.astype(str)).to_dict("records")}))
         except Exception as e:
             logging.warning("ข้าม DBnomics backfill (best-effort): %s", e)
+        # BOT Statistics รายเดือน best-effort: เติมช่วงที่ DBnomics ยังไม่มา (2024-07→now) ด้วยค่าจริง
+        try:
+            stat = fetch_bot_series(STAT_SERIES)
+            rows.append((STAT_SERIES,
+                         {"obs": stat.assign(obs_date=stat.obs_date.astype(str)).to_dict("records")}))
+        except Exception as e:
+            logging.warning("ข้าม BOT Statistics %s (best-effort): %s", STAT_SERIES, e)
         with eng.begin() as c:
             for sid, payload in rows:
                 c.execute(text("""
@@ -57,27 +65,35 @@ def ingest_policy_rate():
                 ON CONFLICT (indicator_code) DO UPDATE SET name_en=EXCLUDED.name_en
             """), {"code": CODE})
 
-            def upsert(obs_date, value):
+            def upsert(obs_date, value, source, series_id):
+                # ON CONFLICT อัปเดตทั้ง value และ source → ชั้นหลังทับทั้งค่าและ provenance
                 c.execute(text("""
                     INSERT INTO silver.macro_observation
                       (indicator_code,obs_date,value,unit,frequency,source,source_series_id)
-                    VALUES (:code,:d,:v,'percent','M','BOT',:sid)
-                    ON CONFLICT (indicator_code,obs_date) DO UPDATE SET value=EXCLUDED.value
-                """), {"code": CODE, "d": obs_date, "v": float(value), "sid": "policy_rate"})
+                    VALUES (:code,:d,:v,'percent','M',:src,:sid)
+                    ON CONFLICT (indicator_code,obs_date)
+                    DO UPDATE SET value=EXCLUDED.value, source=EXCLUDED.source, source_series_id=EXCLUDED.source_series_id
+                """), {"code": CODE, "d": obs_date, "v": float(value), "src": source, "sid": series_id})
 
-            # DBnomics history (เก่า) ก่อน แล้ว BOT (สด) ทับ — ถ้าวันชนกัน BOT ชนะ
-            for sid in [BACKFILL_SERIES, "BOT/policy_rate"]:
+            # layering — ชั้นหลังทับชั้นก่อน (ทั้ง value + source):
+            #   BIS (ยาว) → BOT_STAT (เติมช่อง 2024-07+ ค่าจริง) → BOT current (สดสุด)
+            layers = [
+                (BACKFILL_SERIES,   "BIS",      BACKFILL_SERIES),
+                (STAT_SERIES,       "BOT_STAT", STAT_SERIES),
+                ("BOT/policy_rate", "BOT",      "policy_rate"),
+            ]
+            for bronze_sid, src, series_id in layers:
                 row = c.execute(text("""
                     SELECT payload FROM bronze.raw_observation
                     WHERE series_id = :sid ORDER BY ingested_at DESC LIMIT 1
-                """), {"sid": sid}).scalar_one_or_none()
-                if row is None:        # ไม่เคยมี source นี้ใน bronze (เช่น DBnomics ไม่เคยสำเร็จ) → ข้าม
+                """), {"sid": bronze_sid}).scalar_one_or_none()
+                if row is None:        # source นี้ไม่เคยลง bronze สำเร็จ (best-effort ล่ม) → ข้าม
                     continue
-                if sid == "BOT/policy_rate":
-                    upsert(row["obs_date"], row["value"])
+                if bronze_sid == "BOT/policy_rate":
+                    upsert(row["obs_date"], row["value"], src, series_id)
                 else:
                     for r in row["obs"]:
-                        upsert(r["obs_date"], r["value"])
+                        upsert(r["obs_date"], r["value"], src, series_id)
 
     @task
     def validate_silver() -> None:

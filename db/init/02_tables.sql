@@ -63,6 +63,12 @@ CREATE TABLE IF NOT EXISTS gold.cpi_monthly (
   cpi_yoy    NUMERIC      -- % เทียบช่วงเดียวกันปีก่อน (headline)
 );
 
+-- GOLD: yield พันธบัตรรัฐบาลไทย 10 ปี รายเดือน จาก BOT Statistics (FMRTINTM00296)
+CREATE TABLE IF NOT EXISTS gold.bond_monthly (
+  obs_month  DATE PRIMARY KEY,
+  bond_10y   NUMERIC      -- % ต่อปี, ค่าสิ้นเดือน
+);
+
 -- GOLD: ผลพยากรณ์ทุก indicator รวมตารางเดียว (actual + forecast แยกด้วย is_forecast)
 -- is_forecast=false = ค่าจริงที่ feed เข้าโมเดล, true = ค่าพยากรณ์ + ช่วงความเชื่อมั่น
 CREATE TABLE IF NOT EXISTS gold.forecast_monthly (
@@ -99,15 +105,23 @@ UNION ALL SELECT 'set_mom', 'policy_rate', round(corr(set_mom, policy_rate)::num
 UNION ALL SELECT 'set_mom', 'cpi_yoy', round(corr(set_mom, cpi_yoy)::numeric, 3), count(*) FROM d
 UNION ALL SELECT 'usdthb_mom', 'policy_rate', round(corr(usdthb_mom, policy_rate)::numeric, 3), count(*) FROM d
 UNION ALL SELECT 'usdthb_mom', 'cpi_yoy', round(corr(usdthb_mom, cpi_yoy)::numeric, 3), count(*) FROM d
-UNION ALL SELECT 'policy_rate', 'cpi_yoy', round(corr(policy_rate, cpi_yoy)::numeric, 3), count(*) FROM d;
+UNION ALL SELECT 'policy_rate', 'cpi_yoy', round(corr(policy_rate, cpi_yoy)::numeric, 3), count(*) FROM d
+-- bond 10Y เพิ่งเริ่มมี ~2024-07 (n น้อย) → คำนวณ pairwise เอง (corr ข้าม null คู่ให้อยู่แล้ว) ไม่รวมใน d
+UNION ALL SELECT 'bond_10y', 'policy_rate', round(corr(bond_10y, policy_rate)::numeric, 3), count(*)
+  FROM gold.dashboard_monthly WHERE bond_10y IS NOT NULL AND policy_rate IS NOT NULL
+UNION ALL SELECT 'bond_10y', 'cpi_yoy', round(corr(bond_10y, cpi_yoy)::numeric, 3), count(*)
+  FROM gold.dashboard_monthly WHERE bond_10y IS NOT NULL AND cpi_yoy IS NOT NULL
+UNION ALL SELECT 'bond_10y', 'usdthb_mom', round(corr(bond_10y, usdthb_mom)::numeric, 3), count(*)
+  FROM gold.dashboard_monthly WHERE bond_10y IS NOT NULL AND usdthb_mom IS NOT NULL;
 
 -- VIEW รวมทุก mart ตาม obs_month (FULL JOIN — เดือนไหนมีบางตัวก็แสดง) สำหรับ dashboard/CSV
 CREATE OR REPLACE VIEW gold.dashboard_monthly AS
 SELECT obs_month, s.set_close, s.set_mom, s.set_volume,
-       f.usdthb, f.usdthb_mom, p.policy_rate, c.cpi_yoy,
+       f.usdthb, f.usdthb_mom, p.policy_rate, c.cpi_yoy, b.bond_10y,
        p.policy_rate - c.cpi_yoy AS real_rate
 FROM gold.set_monthly s
 FULL JOIN gold.fx_monthly f USING (obs_month)
 FULL JOIN gold.policy_rate_monthly p USING (obs_month)
 FULL JOIN gold.cpi_monthly c USING (obs_month)
+FULL JOIN gold.bond_monthly b USING (obs_month)
 ORDER BY obs_month;

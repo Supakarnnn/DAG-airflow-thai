@@ -14,6 +14,7 @@ x-airflow-common: &airflow-common
     # warehouse conn ให้ DAG เรียกใช้ (bronze/silver/gold อยู่ใน db ชื่อ warehouse)
     AIRFLOW_CONN_WAREHOUSE: postgresql://warehouse:warehouse@postgres:5432/warehouse
     BOT_API_KEY: ${BOT_API_KEY:-}
+    BOT_API_STAT_KEY: ${BOT_API_STAT_KEY:-}
     FRED_API_KEY: ${FRED_API_KEY:-}
   volumes:
     - ./dags:/opt/airflow/dags
