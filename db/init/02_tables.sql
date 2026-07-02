@@ -114,6 +114,14 @@ UNION ALL SELECT 'bond_10y', 'cpi_yoy', round(corr(bond_10y, cpi_yoy)::numeric, 
 UNION ALL SELECT 'bond_10y', 'usdthb_mom', round(corr(bond_10y, usdthb_mom)::numeric, 3), count(*)
   FROM gold.dashboard_monthly WHERE bond_10y IS NOT NULL AND usdthb_mom IS NOT NULL;
 
+-- GOLD: ผลจาก DAG สาธิต PySpark (ingest_set_spark) — เนื้อหาเดียวกับ set_monthly, แยกตารางไม่แตะของจริง
+CREATE TABLE IF NOT EXISTS gold.set_monthly_spark (
+  obs_month   DATE PRIMARY KEY,
+  set_close   NUMERIC,
+  set_volume  NUMERIC,
+  set_mom     NUMERIC
+);
+
 -- VIEW รวมทุก mart ตาม obs_month (FULL JOIN — เดือนไหนมีบางตัวก็แสดง) สำหรับ dashboard/CSV
 CREATE OR REPLACE VIEW gold.dashboard_monthly AS
 SELECT obs_month, s.set_close, s.set_mom, s.set_volume,

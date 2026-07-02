@@ -74,8 +74,68 @@
     border:2px solid var(--accent);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4)}
   .dual input[type=range]::-moz-range-thumb{pointer-events:auto;height:18px;width:18px;
     border-radius:50%;background:var(--surface);border:2px solid var(--accent);cursor:pointer}
+  /* AI summary */
+  .summary{background:linear-gradient(135deg,var(--surface2),var(--surface));
+    border:1px solid var(--line);border-radius:14px;padding:20px 22px;box-shadow:var(--shadow)}
+  .summary .tag{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;
+    letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+  .summary .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);
+    animation:pulse 2.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .summary p{margin:0;font-size:14.5px;line-height:1.75}
+  .summary .refresh{float:right;border:1px solid var(--line);background:var(--surface2);
+    color:var(--muted);font:inherit;font-size:12.5px;border-radius:8px;padding:5px 12px;cursor:pointer}
+  .summary .refresh:hover{color:var(--ink)} .summary .refresh:active{transform:scale(.97)}
+  /* chat drawer (ซ้าย) */
+  .chat-toggle{position:fixed;right:20px;bottom:20px;z-index:30;display:inline-flex;
+    align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface2);
+    color:var(--ink);font:inherit;font-size:13.5px;font-weight:600;border-radius:999px;
+    padding:11px 18px;cursor:pointer;box-shadow:var(--shadow)}
+  .chat-toggle:hover{border-color:var(--accent)}
+  .chat-toggle:active{transform:scale(.97)}
+  .chat-toggle .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);
+    animation:pulse 2.2s ease-in-out infinite}
+  .drawer{position:fixed;right:0;top:0;bottom:0;z-index:40;width:400px;max-width:92vw;
+    background:var(--surface);border-left:1px solid var(--line);
+    box-shadow:-8px 0 32px rgba(0,0,0,.35);display:flex;flex-direction:column;
+    transform:translateX(105%);transition:transform .28s cubic-bezier(.16,1,.3,1)}
+  .drawer.open{transform:translateX(0)}
+  .drawer-head{display:flex;align-items:center;gap:10px;padding:16px 18px;
+    border-bottom:1px solid var(--line)}
+  .drawer-head .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);
+    animation:pulse 2.2s ease-in-out infinite}
+  .drawer-head h3{margin:0;font-size:14.5px;font-weight:600;flex:1}
+  .drawer-head .close{border:0;background:none;color:var(--muted);font:inherit;
+    font-size:20px;line-height:1;cursor:pointer;padding:4px 8px;border-radius:8px}
+  .drawer-head .close:hover{color:var(--ink);background:var(--surface2)}
+  .chat{display:flex;flex-direction:column;flex:1;min-height:0;padding:14px 18px 18px}
+  .chatlog{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:4px 2px 14px}
+  .msg{max-width:82%;padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.6;
+    white-space:pre-wrap;word-break:break-word}
+  .msg.user{align-self:flex-end;background:var(--accent);color:#07221e;border-bottom-right-radius:4px}
+  .msg.bot{align-self:flex-start;background:var(--surface2);border:1px solid var(--line);
+    border-bottom-left-radius:4px}
+  .msg.err{align-self:flex-start;background:rgba(240,115,143,.12);border:1px solid rgba(240,115,143,.4)}
+  .msg table{margin-top:8px;font-size:12.5px}
+  .msg th,.msg td{padding:5px 10px}
+  .chatform{display:flex;gap:10px;border-top:1px solid var(--line);padding-top:14px}
+  .chatform input{flex:1;background:var(--surface2);color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:10px 14px;font:inherit;font-size:13.5px}
+  .chatform input:focus{outline:none;border-color:var(--accent)}
+  .chatform button{border:0;background:var(--accent);color:#07221e;font:inherit;font-size:13.5px;
+    font-weight:600;border-radius:10px;padding:10px 20px;cursor:pointer}
+  .chatform button:disabled{opacity:.5;cursor:default}
+  .chatform button:active{transform:scale(.97)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .chips button{border:1px solid var(--line);background:var(--surface2);color:var(--muted);
+    font:inherit;font-size:12.5px;border-radius:999px;padding:6px 14px;cursor:pointer}
+  .chips button:hover{color:var(--ink);border-color:var(--accent)}
+  .typing{display:inline-flex;gap:4px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);
+    animation:pulse 1s ease-in-out infinite}
+  .typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
   @media(max-width:760px){.stats{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}
-    .dual{flex-basis:100%;order:3}}
+    .dual{flex-basis:100%;order:3}.msg{max-width:95%}}
 </style>
 </head>
 <body>
@@ -96,6 +156,14 @@
 
   <section>
     <div class="stats" id="stats"><div class="stat"><div class="skel">กำลังโหลด...</div></div></div>
+  </section>
+
+  <section>
+    <div class="summary" id="summary">
+      <button class="refresh" id="sumRefresh">สรุปใหม่</button>
+      <span class="tag"><span class="dot"></span>สรุปโดย AI จากข้อมูล 3 เดือนล่าสุด</span>
+      <p id="sumText" class="skel">กำลังสรุปข้อมูล...</p>
+    </div>
   </section>
 
   <section>
@@ -129,7 +197,35 @@
     <div class="card"><p class="note">ค่า correlation: +1 ไปทางเดียวกัน, −1 สวนทาง, 0 ไม่สัมพันธ์ &middot; n = จำนวนเดือน</p>
       <table id="corr"><tbody><tr><td class="skel">กำลังโหลด...</td></tr></tbody></table></div>
   </section>
+
+
 </div>
+
+<button class="chat-toggle" id="chatToggle" aria-expanded="false">
+  <span class="dot"></span>ถามข้อมูล
+</button>
+
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head">
+    <span class="dot"></span>
+    <h3>ถามข้อมูล</h3>
+    <button class="close" id="chatClose" aria-label="ปิด">&times;</button>
+  </div>
+  <div class="chat">
+    <div class="chips" id="chips">
+      <button>SET Index เดือนล่าสุดเท่าไร</button>
+      <button>ดอกเบี้ยนโยบายย้อนหลัง 6 เดือน</button>
+      <button>เงินเฟ้อสูงสุดในปีนี้เดือนไหน</button>
+    </div>
+    <div class="chatlog" id="chatlog">
+      <div class="msg bot">สวัสดี ถามข้อมูลตลาดหุ้น ค่าเงิน ดอกเบี้ย หรือเงินเฟ้อไทยได้เลย ระบบจะดึงตัวเลขจริงจากฐานข้อมูลมาตอบ</div>
+    </div>
+    <form class="chatform" id="chatform">
+      <input id="chatinput" placeholder="เช่น ค่าเงินบาทเดือนล่าสุดเท่าไร" autocomplete="off">
+      <button id="chatsend" type="submit">ส่ง</button>
+    </form>
+  </div>
+</aside>
 
 <script>
 const API = "";  // เสิร์ฟจาก FastAPI โดเมนเดียวกัน
@@ -269,6 +365,68 @@ document.getElementById("seg").addEventListener("click", e=>{
   drawForecast(b.dataset.i);
 });
 drawForecast("TH.SET_INDEX");
+
+// ---- AI summary ----
+async function loadSummary(){
+  const p = el("sumText");
+  p.className = "skel"; p.textContent = "กำลังสรุปข้อมูล...";
+  try{
+    const s = await get("/api/summary");
+    p.className = ""; p.textContent = s.narrative;
+  }catch(e){
+    p.className = "skel"; p.textContent = "สรุปไม่สำเร็จ ลองกดสรุปใหม่ (โมเดล free อาจตอบช้าหรือ 502 ชั่วคราว)";
+  }
+}
+el("sumRefresh").onclick = loadSummary;
+loadSummary();
+
+// ---- chat ----
+const log = el("chatlog"), input = el("chatinput"), send = el("chatsend");
+const esc = s => s.replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function bubble(cls, html){
+  const div = document.createElement("div");
+  div.className = "msg "+cls; div.innerHTML = html;
+  log.appendChild(div); log.scrollTop = log.scrollHeight;
+  return div;
+}
+function resultTable(rows){
+  if(!rows.length) return "<em>ไม่พบข้อมูล</em>";
+  const cols = Object.keys(rows[0]);
+  const fmtCell = v => v==null ? "-" : (typeof v==="number" && !Number.isInteger(v) ? fmt(v) : esc(String(v)));
+  return "<table><thead><tr>"+cols.map(c=>`<th>${esc(c)}</th>`).join("")+"</tr></thead><tbody>"
+    + rows.slice(0,12).map(r=>"<tr>"+cols.map(c=>`<td>${fmtCell(r[c])}</td>`).join("")+"</tr>").join("")
+    + "</tbody></table>" + (rows.length>12 ? `<div class="skel">แสดง 12 จาก ${rows.length} แถว</div>` : "");
+}
+async function ask(q){
+  q = q.trim(); if(!q || send.disabled) return;
+  bubble("user", esc(q));
+  input.value = ""; send.disabled = true;
+  const wait = bubble("bot", '<span class="typing"><i></i><i></i><i></i></span>');
+  try{
+    const res = await fetch(API+"/api/ask?question="+encodeURIComponent(q));
+    const d = await res.json();
+    wait.remove();
+    if(!res.ok){ bubble("err", esc(d.detail || "เกิดข้อผิดพลาด")); return; }
+    if(d.type === "chat") bubble("bot", esc(d.answer));
+    else bubble("bot", resultTable(d.result));
+  }catch(e){
+    wait.remove(); bubble("err", "เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง");
+  }finally{ send.disabled = false; input.focus(); }
+}
+el("chatform").onsubmit = e => { e.preventDefault(); ask(input.value); };
+el("chips").onclick = e => { const b = e.target.closest("button"); if(b) ask(b.textContent); };
+
+// ---- drawer เปิด/ปิด ----
+const drawer = el("drawer"), toggle = el("chatToggle");
+function setDrawer(open){
+  drawer.classList.toggle("open", open);
+  drawer.setAttribute("aria-hidden", !open);
+  toggle.setAttribute("aria-expanded", open);
+  if(open) input.focus();
+}
+toggle.onclick = () => setDrawer(!drawer.classList.contains("open"));
+el("chatClose").onclick = () => setDrawer(false);
+document.addEventListener("keydown", e => { if(e.key === "Escape") setDrawer(false); });
 </script>
 </body>
 </html>

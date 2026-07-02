@@ -1,6 +1,7 @@
 .env
 .venv/
 logs/
+data/
 __pycache__/
 *.pyc
 CLAUDE.md
@@ -8,3 +9,4 @@ spec.md
 AGENTS.md
 dashboards/
 scripts/
+HANDOFF.md

@@ -9,3 +9,5 @@ fastapi==0.115.6
 uvicorn==0.34.0
 SQLAlchemy==2.0.51
 psycopg2-binary==2.9.12
+langchain==0.3.14
+langchain-openrouter==0.2.5

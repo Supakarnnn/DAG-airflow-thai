@@ -2,7 +2,8 @@
 # ponytail: LocalExecutor not Celery/Redis — single-VM portfolio doesn't need distributed workers.
 #           สลับเป็น CeleryExecutor เมื่อต้อง scale หลาย worker จริง ๆ
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.9.3-python3.11
+  build: .   # Dockerfile = base image + Java + pyspark (สำหรับ ingest_set_spark)
+  image: thai-mac-airflow
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
@@ -21,6 +22,7 @@ x-airflow-common: &airflow-common
     - ./src:/opt/airflow/src
     - ./config:/opt/airflow/config
     - ./logs:/opt/airflow/logs
+    - ./data:/opt/airflow/data   # parquet lake ของ DAG spark (gitignored)
   depends_on:
     postgres:
       condition: service_healthy
