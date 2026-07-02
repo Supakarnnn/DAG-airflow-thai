@@ -119,8 +119,8 @@
   </section>
 
   <section>
-    <h2>อัตราดอกเบี้ยที่แท้จริง</h2>
-    <div class="card"><p class="note">real rate = ดอกเบี้ยนโยบาย − เงินเฟ้อ (เฉพาะเดือนที่มีครบทั้งคู่)</p>
+    <h2>ดอกเบี้ยและอัตราผลตอบแทน</h2>
+    <div class="card"><p class="note">real rate = ดอกเบี้ยนโยบาย − เงินเฟ้อ. พันธบัตร 10 ปีเริ่มมีข้อมูล 2024-07 (ขยับตามดอกเบี้ยนโยบาย)</p>
       <div class="cv" style="height:300px"><canvas id="cReal"></canvas></div></div>
   </section>
 
@@ -215,6 +215,7 @@ const depth={id:"depth",beforeDatasetsDraw(c){c.ctx.save();
       pointBackgroundColor:`rgb(${rgb})`,pointBorderColor:"#16221f",pointBorderWidth:2,spanGaps:true});
     charts.real=new Chart(el("cReal"),{type:"line",data:{labels:rlab,datasets:[
       ar("ดอกเบี้ยนโยบาย","policy_rate","138,147,214",false),
+      ar("พันธบัตร 10 ปี","bond_10y","119,182,99",false),
       ar("เงินเฟ้อ YoY","cpi_yoy","240,115,143",false),
       ar("real rate","real_rate","45,212,191",true)]},
       options:{...baseOpts,plugins:{legend:{display:true,position:"bottom"}}},plugins:[depth]});
