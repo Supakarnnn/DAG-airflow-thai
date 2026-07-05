@@ -1,4 +1,3 @@
-"""SET pipeline: yfinance ^SET.BK -> bronze -> silver (2 indicators) -> gold (monthly + MoM)."""
 import json
 import sys
 from datetime import datetime
@@ -9,13 +8,11 @@ from airflow.operators.python import get_current_context
 from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
-import pandas as pd  # noqa: E402
-from src.extract.set import fetch_set  # noqa: E402
-from src.quality.set_checks import validate_set  # noqa: E402
+import pandas as pd
+from src.extract.set import fetch_set
+from src.quality.set_checks import validate_set
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
-
-# SET 1 ก้อนข้อมูล แตกเป็น 2 ตัวชี้วัดใน silver
 INDICATORS = {
     "close":  dict(code="TH.SET_INDEX",  name_th="ดัชนีตลาดหลักทรัพย์ไทย", name_en="SET Index",  unit="points", category="market"),
     "volume": dict(code="TH.SET_VOLUME", name_th="ปริมาณซื้อขาย SET",      name_en="SET Volume", unit="shares", category="market"),
@@ -66,7 +63,6 @@ def ingest_set():
 
     @task
     def validate_silver() -> None:
-        # อ่าน SET จาก silver -> pivot wide -> Pandera ตรวจ. ไม่ผ่าน = raise -> to_gold ไม่รัน
         with ENGINE().begin() as c:
             rows = c.execute(text("""
                 SELECT obs_date, indicator_code, value FROM silver.macro_observation
@@ -80,7 +76,6 @@ def ingest_set():
 
     @task
     def to_gold() -> None:
-        # set_close = close วันสุดท้ายของเดือน, set_volume = รวมทั้งเดือน, set_mom = %เทียบเดือนก่อน
         with ENGINE().begin() as c:
             c.execute(text("TRUNCATE gold.set_monthly"))
             c.execute(text("""

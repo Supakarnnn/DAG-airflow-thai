@@ -9,9 +9,9 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
-import pandas as pd  # noqa: E402
-from src.analytics.forecast import forecast_series  # noqa: E402
-from src.quality.forecast_checks import validate_forecast  # noqa: E402
+import pandas as pd
+from src.analytics.forecast import forecast_series
+from src.quality.forecast_checks import validate_forecast
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
 CODE = "TH.SET_INDEX"
