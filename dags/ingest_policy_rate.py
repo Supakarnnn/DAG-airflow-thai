@@ -1,5 +1,3 @@
-"""ดอกเบี้ยนโยบายไทย: BOT (ค่าสด) + DBnomics (backfill ย้อนหลัง) -> silver -> gold (forward-fill).
-BOT API ให้แค่ค่าปัจจุบัน+วันมีผล, DBnomics เติมประวัติเก่า — รวมเป็น series เดียวใน silver."""
 import json
 import sys
 from datetime import datetime
@@ -10,10 +8,10 @@ from airflow.operators.python import get_current_context
 from sqlalchemy import text
 
 sys.path.append("/opt/airflow")
-import pandas as pd  # noqa: E402
-from src.extract.bot import fetch_policy_rate, fetch_bot_series  # noqa: E402
-from src.extract.dbnomics import fetch as fetch_db  # noqa: E402
-from src.quality.bot_checks import validate_policy_rate  # noqa: E402
+import pandas as pd
+from src.extract.bot import fetch_policy_rate, fetch_bot_series
+from src.extract.dbnomics import fetch as fetch_db
+from src.quality.bot_checks import validate_policy_rate
 
 ENGINE = lambda: PostgresHook(postgres_conn_id="warehouse").get_sqlalchemy_engine()
 CODE = "TH.POLICY_RATE"
@@ -29,17 +27,13 @@ def ingest_policy_rate():
         import logging
         run_id = get_current_context()["run_id"]
         eng = ENGINE()
-        # BOT: ค่าสดปัจจุบัน (critical — ถ้าพังให้ DAG พัง เพราะนี่คือข้อมูลรายวันจริง)
         rows = [("BOT/policy_rate", fetch_policy_rate())]
-        # DBnomics backfill เป็น best-effort: ช้า/ล่มบ่อย + ประวัติแทบไม่เปลี่ยน
-        # ล่มก็ข้าม ไม่ให้ DAG พัง (ประวัติเดิมยังอยู่ใน silver จากรันก่อน — idempotent)
         try:
             hist = fetch_db(BACKFILL_SERIES)
             rows.append((BACKFILL_SERIES,
                          {"obs": hist.assign(obs_date=hist.obs_date.astype(str)).to_dict("records")}))
         except Exception as e:
             logging.warning("ข้าม DBnomics backfill (best-effort): %s", e)
-        # BOT Statistics รายเดือน best-effort: เติมช่วงที่ DBnomics ยังไม่มา (2024-07→now) ด้วยค่าจริง
         try:
             stat = fetch_bot_series(STAT_SERIES)
             rows.append((STAT_SERIES,
@@ -66,7 +60,6 @@ def ingest_policy_rate():
             """), {"code": CODE})
 
             def upsert(obs_date, value, source, series_id):
-                # ON CONFLICT อัปเดตทั้ง value และ source → ชั้นหลังทับทั้งค่าและ provenance
                 c.execute(text("""
                     INSERT INTO silver.macro_observation
                       (indicator_code,obs_date,value,unit,frequency,source,source_series_id)
@@ -75,8 +68,6 @@ def ingest_policy_rate():
                     DO UPDATE SET value=EXCLUDED.value, source=EXCLUDED.source, source_series_id=EXCLUDED.source_series_id
                 """), {"code": CODE, "d": obs_date, "v": float(value), "src": source, "sid": series_id})
 
-            # layering — ชั้นหลังทับชั้นก่อน (ทั้ง value + source):
-            #   BIS (ยาว) → BOT_STAT (เติมช่อง 2024-07+ ค่าจริง) → BOT current (สดสุด)
             layers = [
                 (BACKFILL_SERIES,   "BIS",      BACKFILL_SERIES),
                 (STAT_SERIES,       "BOT_STAT", STAT_SERIES),
@@ -87,7 +78,7 @@ def ingest_policy_rate():
                     SELECT payload FROM bronze.raw_observation
                     WHERE series_id = :sid ORDER BY ingested_at DESC LIMIT 1
                 """), {"sid": bronze_sid}).scalar_one_or_none()
-                if row is None:        # source นี้ไม่เคยลง bronze สำเร็จ (best-effort ล่ม) → ข้าม
+                if row is None:
                     continue
                 if bronze_sid == "BOT/policy_rate":
                     upsert(row["obs_date"], row["value"], src, series_id)
@@ -97,7 +88,6 @@ def ingest_policy_rate():
 
     @task
     def validate_silver() -> None:
-        # อ่าน policy rate จาก silver -> Pandera ตรวจ. ไม่ผ่าน = raise -> to_gold ไม่รัน
         with ENGINE().begin() as c:
             rows = c.execute(text("""
                 SELECT value AS policy_rate FROM silver.macro_observation
@@ -108,8 +98,6 @@ def ingest_policy_rate():
 
     @task
     def to_gold() -> None:
-        # สร้างเดือนต่อเนื่องตั้งแต่ข้อมูลแรกถึงปัจจุบัน แล้ว as-of fill (ค่าที่มีผล ณ สิ้นเดือน)
-        # ponytail: correlated subquery — ข้อมูลหลักร้อยเดือน เร็วพอ; เปลี่ยนเป็น window ถ้าโตมาก
         with ENGINE().begin() as c:
             c.execute(text("TRUNCATE gold.policy_rate_monthly"))
             c.execute(text("""
@@ -136,6 +124,5 @@ def ingest_policy_rate():
             """), {"code": CODE})
 
     to_bronze() >> to_silver() >> validate_silver() >> to_gold()
-
 
 ingest_policy_rate()
