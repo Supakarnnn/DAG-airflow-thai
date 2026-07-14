@@ -1,4 +1,5 @@
-CREATE USER warehouse WITH PASSWORD 'warehouse';
+\getenv warehouse_password WAREHOUSE_PASSWORD
+CREATE USER warehouse WITH PASSWORD :'warehouse_password';
 CREATE DATABASE warehouse OWNER warehouse;
 
 \connect warehouse

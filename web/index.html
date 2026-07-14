@@ -403,7 +403,9 @@ async function ask(q){
   input.value = ""; send.disabled = true;
   const wait = bubble("bot", '<span class="typing"><i></i><i></i><i></i></span>');
   try{
-    const res = await fetch(API+"/api/ask?question="+encodeURIComponent(q));
+    const res = await fetch(API+"/api/ask", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({question:q})
+    });
     const d = await res.json();
     wait.remove();
     if(!res.ok){ bubble("err", esc(d.detail || "เกิดข้อผิดพลาด")); return; }

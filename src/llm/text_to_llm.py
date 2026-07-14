@@ -60,7 +60,10 @@ def query_gold_data(sql: str) -> str:
     return sql
 
 
-_FORBIDDEN = re.compile(r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|call)\b", re.I)
+_FORBIDDEN = re.compile(
+    r"\b(insert|update|delete|drop|alter|create|truncate|grant|revoke|copy|call|set|reset|set_config|do|vacuum)\b|pg_|information_schema",
+    re.I,
+)
 
 
 def route_question(question: str) -> dict:
@@ -86,4 +89,3 @@ def is_safe_select(sql: str) -> bool:
 
 if __name__ == "__main__":
     print("ok")
-
