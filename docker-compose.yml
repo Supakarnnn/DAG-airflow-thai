@@ -1,6 +1,3 @@
-# Phase 0 — Airflow (LocalExecutor) + Postgres warehouse, รันคำสั่งเดียว: docker compose up
-# ponytail: LocalExecutor not Celery/Redis — single-VM portfolio doesn't need distributed workers.
-#           สลับเป็น CeleryExecutor เมื่อต้อง scale หลาย worker จริง ๆ
 x-airflow-common: &airflow-common
   build: .   # Dockerfile = base image + Java + pyspark (สำหรับ ingest_set_spark)
   image: thai-mac-airflow
@@ -9,10 +6,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
-    # ponytail: ติดตั้ง deps ตอน start พอสำหรับ dev; ทำ Dockerfile เมื่อ build เสถียร/CI
-    # pin ครบ — pandas ต้อง 2.x (3.0 พัง read_sql กับ SQLAlchemy 1.4 ที่ Airflow บังคับใช้)
     _PIP_ADDITIONAL_REQUIREMENTS: "yfinance==1.4.1 fredapi==0.5.2 dbnomics==1.2.7 pandera==0.32.0 pandas==2.2.3 statsmodels==0.14.4 apache-airflow-providers-postgres"
-    # warehouse conn ให้ DAG เรียกใช้ (bronze/silver/gold อยู่ใน db ชื่อ warehouse)
     AIRFLOW_CONN_WAREHOUSE: postgresql://warehouse:warehouse@postgres:5432/warehouse
     BOT_API_KEY: ${BOT_API_KEY:-}
     BOT_API_STAT_KEY: ${BOT_API_STAT_KEY:-}
@@ -22,7 +16,7 @@ x-airflow-common: &airflow-common
     - ./src:/opt/airflow/src
     - ./config:/opt/airflow/config
     - ./logs:/opt/airflow/logs
-    - ./data:/opt/airflow/data   # parquet lake ของ DAG spark (gitignored)
+    - ./data:/opt/airflow/data
   depends_on:
     postgres:
       condition: service_healthy
@@ -36,9 +30,9 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db/init:/docker-entrypoint-initdb.d   # สร้าง db warehouse + schema bronze/silver/gold
+      - ./db/init:/docker-entrypoint-initdb.d
     ports:
-      - "5433:5432"   # host 5433 — กันชนกับ Postgres ที่ลงบน Windows อยู่แล้ว (จับ 5432)
+      - "5440:5432"
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "airflow"]
       interval: 5s
@@ -56,7 +50,7 @@ services:
     <<: *airflow-common
     command: webserver
     ports:
-      - "8081:8080"
+      - "9090:8080"
     depends_on:
       airflow-init:
         condition: service_completed_successfully

@@ -17,8 +17,6 @@ def forecast_series(df: pd.DataFrame, periods: int = 6, season: int = SEASON) ->
     ).fit()
     yhat = fit.forecast(periods)
 
-    # ponytail: statsmodels HW ไม่มี prediction interval ในตัว → ใช้ ±1.96σ ของ residual
-    # คงที่ (ไม่ขยายตามระยะพยากรณ์). อัปเกรดเป็น simulate() ถ้าต้อง interval ที่ถูกต้องกว่า
     sigma = (fit.fittedvalues - s["value"].astype(float)).std()
     band = 1.96 * sigma
 
@@ -32,9 +30,9 @@ def forecast_series(df: pd.DataFrame, periods: int = 6, season: int = SEASON) ->
     })
 
 
-if __name__ == "__main__":  # self-check: uv run -m src.analytics.forecast  (ต้อง postgres รันที่ :5433)
+if __name__ == "__main__":
     from sqlalchemy import create_engine
-    eng = create_engine("postgresql+psycopg2://warehouse:warehouse@127.0.0.1:5433/warehouse")
+    eng = create_engine("postgresql+psycopg2://warehouse:warehouse@127.0.0.1:5440/warehouse")
     actual = pd.read_sql("SELECT obs_month, set_close AS value FROM gold.set_monthly ORDER BY obs_month", eng)
 
     fc = forecast_series(actual, periods=6)

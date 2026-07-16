@@ -56,7 +56,6 @@ Never use the em dash character (—)."""
 
 @tool
 def query_gold_data(sql: str) -> str:
-    """เรียกเมื่อคำถามต้องการข้อมูลจริงจาก schema gold (Postgres). ส่ง SQL SELECT เดียวที่ตรง schema เท่านั้น."""
     return sql
 
 
@@ -64,20 +63,16 @@ _FORBIDDEN = re.compile(r"\b(insert|update|delete|drop|alter|create|truncate|gra
 
 
 def route_question(question: str) -> dict:
-    """คำถามไทย -> {"type": "sql", "sql": ...} ถ้า LLM ตัดสินใจเรียก tool (ต้องใช้ข้อมูลจริง)
-    หรือ {"type": "chat", "text": ...} ถ้าตอบเป็นข้อความธรรมดา (ทักทาย/นอกเรื่อง, ยังไม่ execute อะไร)."""
     llm = ChatOpenRouter(model=MODEL, temperature=0, max_tokens=512).bind_tools([query_gold_data])
     resp = llm.invoke([SystemMessage(SYSTEM_PROMPT), HumanMessage(question)])
     if resp.tool_calls:
         sql = resp.tool_calls[0]["args"]["sql"].strip()
         sql = re.sub(r"^```sql\s*|```$", "", sql, flags=re.I | re.M).strip()
         return {"type": "sql", "sql": sql}
-    return {"type": "chat", "text": resp.content.strip().replace("—", ",")}  # ห้าม em-dash ใน UI
+    return {"type": "chat", "text": resp.content.strip().replace("—", ",")}
 
 
 def is_safe_select(sql: str) -> bool:
-    """gate ก่อน execute — statement เดียว, ขึ้นต้น SELECT/WITH, ไม่มีคำสั่งเขียน/DDL.
-    role llm_readonly เป็นด่านจริง (อ่านได้แค่ gold) นี่แค่ fail-fast ชั้นแรกกันเปลือง round-trip."""
     body = sql.strip().rstrip(";")
     if ";" in body or not re.match(r"^(select|with)\b", body, re.I):
         return False

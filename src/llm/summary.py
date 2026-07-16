@@ -21,11 +21,6 @@ Requirements:
 
 
 def generate_summary(source_rows: list[dict]) -> str:
-    """source_rows = gold rows ที่ใช้ ground คำตอบ (ส่งกลับไว้คู่กับ narrative เพื่อ provenance)."""
     llm = ChatOpenRouter(model=MODEL, temperature=0.3, max_tokens=512)
     resp = llm.invoke([SystemMessage(SYSTEM_PROMPT), HumanMessage(f"ข้อมูล: {source_rows}")])
-    return resp.content.strip().replace("—", ",")  # กันโมเดลไม่ทำตาม prompt
-
-
-if __name__ == "__main__":
-    print("ok")
+    return resp.content.strip().replace("—", ",")
